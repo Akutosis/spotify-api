@@ -457,10 +457,18 @@ class SpotifyAPIClient:
         artist_id : The Spotify ID of the artist
         reviewed_playlist_filepath: Filepath of CSV containing tracks to exclude from review
         """
+        #Get playlist details
+        playlists = self.get_current_user_playlists()
+        pending_review_playlist_id = playlists.loc[playlists['playlist_name'] == 'Pending Review', 'playlist_id'].values[0]
+        reviewed_playlist_tracks = pd.read_csv(reviewed_playlist_filepath)
+
         #Get all albums associated with artist
         albums = self.get_artists_albums(artist_id)
         album_count = albums.shape[0]
         print(f'{album_count} albums identified from {artist_id}.')
+
+        #Remove reviewed albums
+        albums = albums.loc[~albums['album_id'].isin(reviewed_playlist_tracks['album_id'])]
 
         #Get all tracks associated with artist
         tracks = []
@@ -468,11 +476,6 @@ class SpotifyAPIClient:
             album_ids = ','.join(albums['album_id'].values[20 * i:20 * (i + 1)])
             tracks.append(self.get_several_albums_tracks(album_ids))
         tracks = pd.concat(tracks)
-
-        #Get playlist details
-        playlists = self.get_current_user_playlists()
-        pending_review_playlist_id = playlists.loc[playlists['playlist_name'] == 'Pending Review', 'playlist_id'].values[0]
-        reviewed_playlist_tracks = pd.read_csv(reviewed_playlist_filepath)
 
         #Remove irrelevant tracks
         tracks = tracks.loc[tracks['track_artist_ids'].apply(lambda x: artist_id in x)]     #Do not feature artist
@@ -496,7 +499,7 @@ class SpotifyAPIClient:
             print(f'{total_uploads} tracks successfully loaded to Playlist {pending_review_playlist_id}')
 
         #Update reviewed playlist CSV
-        updated_reviewed_playlist_tracks = pd.concat([reviewed_playlist_tracks,tracks['track_id']]).drop_duplicates(ignore_index = True)
+        updated_reviewed_playlist_tracks = pd.concat([reviewed_playlist_tracks,tracks[['track_id','album_id']]]).drop_duplicates(ignore_index = True)
         updated_reviewed_playlist_tracks.to_csv(reviewed_playlist_filepath, index = False)
         print('Reviewed PLaylist CSV updated.')
 
